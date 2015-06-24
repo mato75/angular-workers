@@ -62,41 +62,46 @@ angular.module('FredrikSandell.worker-pool', [])
     that.createAngularWorker = function (depFuncList) {
         //validate the input
 
-        if (!Array.isArray(depFuncList) ||
-            depFuncList.length < 3 ||
-            typeof depFuncList[depFuncList.length - 1] !== 'function') {
-            throw 'Input needs to be: [\'input\',\'output\'\/*optional additional dependencies*\/,\n' +
-                '    function(workerInput, deferredOutput \/*optional additional dependencies*\/)\n' +
-                '        {\/*worker body*\/}' +
-                ']';
-        }
-        if(typeof urlToAngular !== 'string') {
-            throw 'The url to angular must be defined before worker creation';
-        }
         var deferred = $q.defer();
 
-        var dependencyMetaData = createDependencyMetaData(extractDependencyList(depFuncList));
-
-        var blobURL = (window.webkitURL ? webkitURL : URL).createObjectURL(new Blob([
-            populateWorkerTemplate(
-                workerFunctionToString(
-                    depFuncList[depFuncList.length - 1],
-                    dependencyMetaData.workerFuncParamList),
-                dependencyMetaData
-            )], { type: 'application/javascript' }));
-
-
-        var worker = new Worker(blobURL);
-
-        //wait for the worker to load resources
-        worker.addEventListener('message', function (e) {
-            var eventId = e.data.event;
-            if (eventId === 'initDone') {
-                deferred.resolve(buildAngularWorker(worker));
-            } else {
-                deferred.reject(e);
+        try {
+            if (!Array.isArray(depFuncList) ||
+                depFuncList.length < 3 ||
+                typeof depFuncList[depFuncList.length - 1] !== 'function') {
+                throw 'Input needs to be: [\'input\',\'output\'\/*optional additional dependencies*\/,\n' +
+                    '    function(workerInput, deferredOutput \/*optional additional dependencies*\/)\n' +
+                    '        {\/*worker body*\/}' +
+                    ']';
             }
-        });
+            if(typeof urlToAngular !== 'string') {
+                throw 'The url to angular must be defined before worker creation';
+            }
+
+            var dependencyMetaData = createDependencyMetaData(extractDependencyList(depFuncList));
+
+            var blobURL = (window.webkitURL ? webkitURL : URL).createObjectURL(new Blob([
+                populateWorkerTemplate(
+                    workerFunctionToString(
+                        depFuncList[depFuncList.length - 1],
+                        dependencyMetaData.workerFuncParamList),
+                    dependencyMetaData
+                )], { type: 'application/javascript' }));
+
+
+            var worker = new Worker(blobURL);
+
+            //wait for the worker to load resources
+            worker.addEventListener('message', function (e) {
+                var eventId = e.data.event;
+                if (eventId === 'initDone') {
+                    deferred.resolve(buildAngularWorker(worker));
+                } else {
+                    deferred.reject(e);
+                }
+            });
+        } catch (e) {
+            deferred.reject(e);
+        }
 
         return deferred.promise;
     };
